@@ -1,1 +1,0 @@
-# Team blueprint for team participation interface
