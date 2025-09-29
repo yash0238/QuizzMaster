@@ -1,0 +1,1 @@
+# Admin blueprint for game management interface
