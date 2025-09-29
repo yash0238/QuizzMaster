@@ -1,0 +1,301 @@
+Build a production‑ready, single‑service Flask + Flask‑SocketIO quiz application that supports a Host view, multiple Team clients, and an Admin console, using SQLite for persistence and Socket.IO rooms for real‑time updates. Implement everything end‑to‑end as described below.
+
+Project requirements
+
+Python 3.11+ with these packages: flask, flask-socketio, eventlet. Use requirements.txt.
+
+Bind to host 0.0.0.0 and port from the environment variable PORT (default 8000) for Replit.
+
+Use one service to serve pages and Socket.IO from the same origin.
+
+Use Flask application factory pattern, Blueprints for host/team/admin, and Flask‑SocketIO for real‑time.
+
+Use SQLite stored in the instance/ directory, with PRAGMA foreign_keys=ON per connection.
+
+Create this file structure
+
+run.py
+
+requirements.txt
+
+.replit (run command)
+
+app/init.py
+
+app/config.py
+
+app/db.py
+
+app/sockets.py
+
+app/host/init.py
+
+app/host/routes.py
+
+app/team/init.py
+
+app/team/routes.py
+
+app/admin/init.py
+
+app/admin/routes.py
+
+templates/base.html
+
+templates/host.html
+
+templates/team.html
+
+templates/admin.html
+
+static/css/styles.css
+
+static/js/host.js
+
+static/js/team.js
+
+migrations/schema.sql
+
+Implement details
+
+requirements.txt
+
+flask
+
+flask-socketio
+
+eventlet
+
+run.py
+
+Import create_app and socketio from app.
+
+Read host from HOST env (default “0.0.0.0”) and port from PORT env (default “8000”).
+
+Call socketio.run(app, host=..., port=..., allow_unsafe_werkzeug=True).
+
+app/config.py
+
+Provide a Config class with:
+
+SECRET_KEY (env override)
+
+DEBUG and TESTING flags
+
+BASE_DIR and INSTANCE_DIR (instance path created if not present)
+
+DB_PATH default to instance/app.db
+
+JSON_SORT_KEYS=False
+
+SESSION cookie settings
+
+SOCKETIO_CORS_ALLOWED_ORIGINS = "*" for dev
+
+SOCKETIO_ASYNC_MODE default “eventlet”
+
+DEFAULT_QUESTION_TIME_S = 30
+
+Expose load_config() to return Config().
+
+app/db.py
+
+get_db(): open sqlite3 connection with row_factory = sqlite3.Row and PRAGMA foreign_keys=ON; store in flask.g; ensure instance dir exists.
+
+close_db(): teardown to close connection.
+
+init_db(schema_path): read migrations/schema.sql and executescript; commit.
+
+seed_if_empty(): insert one Demo Game, 3 rounds, 2 teams (TEAM_A, TEAM_B), one sample MCQ, and initialize settings if no game exists.
+
+init_app(app): register teardown and CLI commands:
+
+flask init-db
+
+flask seed-db
+
+migrations/schema.sql
+
+PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL.
+
+Tables:
+
+games(id, name, created_at ms)
+
+rounds(id, game_id FK, name, order_index, unique(game_id, order_index))
+
+teams(id, game_id FK, name, code, unique(game_id, code))
+
+questions(id, game_id FK, text, opt_a/b/c/d, correct_index 0–3, type='MCQ')
+
+settings(game_id PK FK, current_round_id FK, current_question_id FK, state in {IDLE,SHOW,LOCK,REVEAL}, deadline_epoch_ms, active_team_id FK)
+
+lifeline_usage(id, game_id FK, team_id FK, lifeline in {FIFTY_FIFTY,PHONE,DISCUSSION}, used_in_round_id FK, used_at ms, unique(game_id, team_id))
+
+buzzer_events(id, game_id FK, team_id FK, question_id FK, ts ms, accepted 0/1)
+
+team_masks(id, game_id FK, team_id FK, question_id FK, masked_i1, masked_i2, ts ms, unique(game_id, team_id, question_id))
+
+Indexes for common lookups as appropriate.
+
+app/init.py (application factory)
+
+Create Flask app with instance_relative_config=True, template_folder="templates", static_folder="static".
+
+Load config object from load_config().
+
+Ensure instance dir exists.
+
+init_db_app(app) to register teardown and CLI.
+
+Initialize a module‑level SocketIO() instance as socketio and call socketio.init_app(app, cors_allowed_origins=..., async_mode=...).
+
+Register blueprints:
+
+host at /host
+
+team at /team
+
+admin at /admin
+
+Define a root route inside create_app that redirects “/” to url_for("host.index").
+
+Import app.sockets at the end so Socket.IO handlers register.
+
+Expose socketio in app.extensions["socketio"].
+
+app/sockets.py
+
+Import socketio from app and get_db from app.db.
+
+Room helpers:
+
+game_room(game_id) -> "game:{id}"
+
+team_room(game_id, team_code) -> "game:{id}:team:{code}"
+
+DB helpers for team id, question, settings, etc.
+
+_broadcast_state(game_id): build current payload with question and options; send to room using socketio.emit("state_update", payload, to=game_room(game_id)).
+
+Socket handlers:
+
+"join": join game room and team room if code provided; emit "joined"; broadcast current state.
+
+"state_request": rebroadcast current state.
+
+"buzz": accept first buzz per question (state=SHOW, matching question), insert accepted row, set settings.active_team_id, commit, and socketio.emit("buzz_lock", {questionId, winnerTeamCode}, to=game_room(...)).
+
+"fifty_request": enforce one lifeline per team for the whole event; only when state=SHOW and type=MCQ; randomly select two wrong options deterministically using seed f"{gid}:{code}:{qid}", upsert into team_masks, insert lifeline_usage, commit, and emit "mask_applied" only to the team room.
+
+"state_push": admin can trigger state rebroadcast.
+
+app/host/routes.py (Blueprint "host")
+
+Ensure a game exists (seed_if_empty if none).
+
+Render host.html with an initial_state dict: gameId, state, deadlineEpochMs, activeTeamId, question with options if set.
+
+app/team/routes.py (Blueprint "team")
+
+Accept ?code=TEAM_CODE and optional ?game=ID; validate team exists in game; render team.html with context {gameId, teamCode, teamName, initialQuestionId} or an error string.
+
+app/admin/routes.py (Blueprint "admin")
+
+GET /admin: list settings, rounds, questions, and teams; render admin.html with controls.
+
+POST /admin/action: operations with form op=...
+
+set_round(round_id)
+
+set_question(question_id, seconds?): set state=SHOW, deadline, clear accepted buzz for that question
+
+set_state(state)
+
+start_timer(seconds)
+
+add_time(seconds)
+
+unlock_buzz (delete accepted buzz for current question)
+
+clear_masks (delete team_masks for current question)
+
+set_active_team(team_id or 0 to clear)
+
+broadcast (no DB change)
+
+After each action, call _broadcast_state(game_id) and socketio.emit("toast", {"msg": f"Admin: {op} applied"}, to=game_room(game_id)).
+
+templates/base.html
+
+Jinja base with nav links to /host, /team, /admin; link static/css/styles.css; include Socket.IO client via CDN; expose a global connectSocket() that defaults to same‑origin and permits WebSocket or polling; include utility $ and $all functions.
+
+templates/host.html
+
+Extend base; display current state, timer, and a non‑interactive options list; include a Refresh button that emits state_request; load static/js/host.js; embed initial_state as JSON for bootstrapping.
+
+templates/team.html
+
+Extend base; show large “BUZZ” button, 4 option buttons, and three lifeline tiles (50‑50, Phone‑a‑Friend, Team Discussion); tiles are locked by default; load static/js/team.js; pass page bootstrap via JSON.
+
+templates/admin.html
+
+Simple HTML forms that POST to /admin/action for each operation; follow Post‑Redirect‑Get; include selectors for round and question, fields for seconds, and buttons for unlock/reset actions.
+
+static/css/styles.css
+
+Global layout, card styles, grid helpers, accessible focus outlines, buzzer styles, option selection, and lifeline locked state.
+
+static/js/host.js
+
+Connect via connectSocket(); emit join {gameId, role:'host'}; request state; handle "state_update" to render question and options; show a countdown to deadline; handle "buzz_lock" to toast winner; provide a Refresh button.
+
+static/js/team.js
+
+Connect; emit join {gameId, teamCode}; request state; maintain currentQuestionId and a Set of masked options; "BUZZ" emits buzz; click on 50‑50 emits fifty_request if tile unlocked; handle "mask_applied" privately by disabling two wrong options; handle "buzz_lock" by disabling own buzzer if not winner; lock lifelines locally after any use.
+
+.replit
+
+Set the run command to: python run.py
+
+Ensure the repl exposes the web server and uses the PORT env provided by Replit.
+
+Post‑build tasks (automate if possible)
+
+Initialize schema: python -m flask --app run.py init-db
+
+Seed demo data: python -m flask --app run.py seed-db
+
+Start server: python run.py
+
+Open these URLs:
+
+Host: https://<repl-url>/host
+
+Team: https://<repl-url>/team?code=TEAM_A (and TEAM_B)
+
+Admin: https://<repl-url>/admin
+
+Acceptance criteria
+
+On Admin, “Set & Start” a question with 30 seconds updates Host and both Teams instantly; timers tick down in all clients.
+
+Press BUZZ on both teams; only the first is accepted and both clients receive a buzz_lock event; Host shows a toast with the winner team code.
+
+Trigger 50‑50 from one team; only that team’s UI disables two wrong options; Host and the other team display all options unchanged.
+
+Admin “Unlock Buzz,” “Clear 50‑50 Masks,” “Add time,” and “Set state” actions immediately reflect in all clients via state_update.
+
+Refresh buttons on Host request and render the current state without reloading the page.
+
+Important implementation notes
+
+Use socketio.emit(...) when emitting from HTTP routes (e.g., admin actions) and emit(...) inside Socket.IO event handlers only if a namespace context exists.
+
+In app/db.py always enable PRAGMA foreign_keys=ON on every new connection and use sqlite3.Row.
+
+Read port from os.environ.get("PORT", "8000"); bind host to "0.0.0.0".
+
+Add a root redirect in create_app so “/” sends to “/host”.
+
+Include brief inline comments in each file to explain purpose and any non‑obvious choices (e.g., deterministic 50‑50 selection, room naming, WAL mode, one‑lifeline policy).
