@@ -3,6 +3,17 @@ from ..db import get_db, seed_if_empty
 
 bp = Blueprint('team', __name__)
 
+@bp.route("/lobby")
+def lobby():
+    from ..db import get_db, seed_if_empty
+    seed_if_empty()
+    db = get_db()
+    game = db.execute("SELECT id FROM games ORDER BY id ASC LIMIT 1").fetchone()
+    if not game:
+        return render_template("team.html", error="No game found")
+    teams = db.execute("SELECT name, code FROM teams WHERE game_id=? ORDER BY id ASC", (game["id"],)).fetchall()
+    return render_template("team_lobby.html", teams=teams, gameId=game["id"])
+
 @bp.route('/')
 def index():
     """Team view - accepts team code and displays team interface"""
