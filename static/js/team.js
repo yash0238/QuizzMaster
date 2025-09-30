@@ -38,21 +38,11 @@ function initializeTeam() {
   // State updates
   socket.on("state_update", (data) => {
     updateTeamDisplay(data);
+    
     // Enable local lifelines during SHOW, disable otherwise
     if (data.state === "SHOW") {
       const phone = document.getElementById("phoneBtn");
       const discuss = document.getElementById("discussionBtn"); // match HTML id
-      if (phone) { phone.disabled = false; phone.classList.remove("locked"); }
-      if (discuss) { discuss.disabled = false; discuss.classList.remove("locked"); }
-    } else {
-      const phone = document.getElementById("phoneBtn");
-      const discuss = document.getElementById("discussionBtn");
-      if (phone) { phone.disabled = true; phone.classList.add("locked"); }
-      if (discuss) { discuss.disabled = true; discuss.classList.add("locked"); }
-    }
-    if (data.state === "SHOW") {
-      const phone = document.getElementById("phoneBtn");
-      const discuss = document.getElementById("discussionBtn");
       if (phone) { phone.disabled = false; phone.classList.remove("locked"); }
       if (discuss) { discuss.disabled = false; discuss.classList.remove("locked"); }
     } else {
