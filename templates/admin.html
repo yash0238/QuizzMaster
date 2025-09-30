@@ -9,7 +9,15 @@
     <div class="error-message">{{ error }}</div>
   {% else %}
     <div class="admin-grid">
-
+      <div class="admin-card">
+        <h2>Add Team</h2>
+        <form method="POST" action="{{ url_for('admin.admin_action') }}">
+          <input type="hidden" name="op" value="add_team"/>
+          <input type="text" name="name" placeholder="Team Name" required/>
+          <input type="text" name="code" placeholder="TEAM_CODE" required/>
+          <button type="submit" class="btn btn-secondary">Add Team</button>
+        </form>
+      </div>      
       <!-- Current State -->
       <div class="admin-card">
         <h2>Current State</h2>
