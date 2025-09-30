@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Teams Lobby{% endblock %}
+{% block nav_links %}{% endblock %}
+{% block content %}
+  <div class="team-card">
+    <h2>Choose Your Team</h2>
+    <div class="options-grid">
+      {% for t in teams %}
+        <a class="option-btn" href="{{ url_for('team.index', code=t['code']) }}">{{ t['name'] }} ({{ t['code'] }})</a>
+      {% endfor %}
+    </div>
+  </div>
+{% endblock %}
