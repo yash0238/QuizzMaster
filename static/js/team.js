@@ -50,6 +50,22 @@ function initializeTeam() {
       if (phone) { phone.disabled = true; phone.classList.add("locked"); }
       if (discuss) { discuss.disabled = true; discuss.classList.add("locked"); }
     }
+    if (data.state === "SHOW") {
+      const phone = document.getElementById("phoneBtn");
+      const discuss = document.getElementById("discussionBtn");
+      if (phone) { phone.disabled = false; phone.classList.remove("locked"); }
+      if (discuss) { discuss.disabled = false; discuss.classList.remove("locked"); }
+    } else {
+      const phone = document.getElementById("phoneBtn");
+      const discuss = document.getElementById("discussionBtn");
+      if (phone) { phone.disabled = true; phone.classList.add("locked"); }
+      if (discuss) { discuss.disabled = true; discuss.classList.add("locked"); }
+    }
+  });
+
+  socket.on("error", (data) => {
+    const msg = typeof data === "string" ? data : (data?.message || "Action rejected");
+    showToast(msg, "warning");
   });
 
   // Buzz race result
