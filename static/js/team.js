@@ -116,6 +116,17 @@ function setupTeamControls() {
         }
       }, 900);
     });
+    // Team Discussion (matches id="discussionBtn" in team.html)
+    const discussionBtn = document.getElementById("discussionBtn");
+    if (discussionBtn) {
+      discussionBtn.addEventListener("click", () => {
+        if (discussionBtn.disabled) return;
+        discussionBtn.disabled = true;
+        discussionBtn.classList.add("locked");
+        showToast("Team Discussion used", "info");
+      });
+}
+
   }
 
   // Options (local selection only; no server submit in this MVP)
