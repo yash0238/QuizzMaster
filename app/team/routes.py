@@ -24,7 +24,7 @@ def index():
     game_id = request.args.get('game', 1)  # Default to game 1
     
     if not team_code:
-        return render_template('team.html', error="Team code is required. Use ?code=TEAM_A or ?code=TEAM_B")
+        return redirect(url_for("team.lobby"))
     
     db = get_db()
     
