@@ -38,7 +38,6 @@ function initializeTeam() {
   // State updates
   socket.on("state_update", (data) => {
     updateTeamDisplay(data);
-    
     // Enable local lifelines during SHOW, disable otherwise
     if (data.state === "SHOW") {
       const phone = document.getElementById("phoneBtn");
