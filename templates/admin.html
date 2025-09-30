@@ -1,161 +1,154 @@
 {% extends "base.html" %}
-
 {% block title %}Quiz Admin{% endblock %}
 
 {% block content %}
 <div class="admin-container">
-    <h1>Quiz Administration</h1>
-    
-    {% if error %}
-        <div class="error-message">{{ error }}</div>
-    {% else %}
-        <div class="admin-grid">
-            <!-- Current State -->
-            <div class="admin-card">
-                <h2>Current State</h2>
-                {% if settings %}
-                    <div class="state-display">
-                        <div><strong>State:</strong> {{ settings.state }}</div>
-                        <div><strong>Round:</strong> 
-                            {% for round in rounds %}
-                                {% if round.id == settings.current_round_id %}{{ round.name }}{% endif %}
-                            {% endfor %}
-                        </div>
-                        <div><strong>Question ID:</strong> {{ settings.current_question_id or 'None' }}</div>
-                        <div><strong>Active Team:</strong>
-                            {% if settings.active_team_id %}
-                                {% for team in teams %}
-                                    {% if team.id == settings.active_team_id %}{{ team.name }}{% endif %}
-                                {% endfor %}
-                            {% else %}None{% endif %}
-                        </div>
-                    </div>
-                {% endif %}
+  <h1>Quiz Administration</h1>
+
+  {% if error %}
+    <div class="error-message">{{ error }}</div>
+  {% else %}
+    <div class="admin-grid">
+
+      <!-- Current State -->
+      <div class="admin-card">
+        <h2>Current State</h2>
+        {% if settings %}
+          <div class="state-display">
+            <div><strong>State:</strong> {{ settings.state }}</div>
+            <div><strong>Round:</strong>
+              {% for r in rounds %}
+                {% if r.id == settings.current_round_id %}{{ r.name }}{% endif %}
+              {% endfor %}
             </div>
-            
-            <!-- Round Control -->
-            <div class="admin-card">
-                <h2>Round Control</h2>
-                <form method="POST" action="{{ url_for('admin.admin_action') }}">
-                    <input type="hidden" name="op" value="set_round">
-                    <select name="round_id" required>
-                        <option value="">Select Round</option>
-                        {% for round in rounds %}
-                            <option value="{{ round.id }}" 
-                                {% if settings and round.id == settings.current_round_id %}selected{% endif %}>
-                                {{ round.name }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                    <button type="submit" class="btn btn-primary">Set Round</button>
-                </form>
+            <div><strong>Question ID:</strong> {{ settings.current_question_id or 'None' }}</div>
+            <div><strong>Active Team:</strong>
+              {% if settings.active_team_id %}
+                {% for t in teams %}{% if t.id == settings.active_team_id %}{{ t.name }}{% endif %}{% endfor %}
+              {% else %}None{% endif %}
             </div>
-            
-            <!-- Question Control -->
-            <div class="admin-card">
-                <h2>Question Control</h2>
-                <form method="POST" action="{{ url_for('admin.admin_action') }}">
-                    <input type="hidden" name="op" value="set_question">
-                    <select name="question_id" required>
-                        <option value="">Select Question</option>
-                        {% for question in questions %}
-                            <option value="{{ question.id }}"
-                                {% if settings and question.id == settings.current_question_id %}selected{% endif %}>
-                                {{ question.text[:50] }}...
-                            </option>
-                        {% endfor %}
-                    </select>
-                    <input type="number" name="seconds" value="30" min="1" max="300" placeholder="Seconds">
-                    <button type="submit" class="btn btn-primary">Set & Start</button>
-                </form>
-            </div>
-            
-            <!-- State Control -->
-            <div class="admin-card">
-                <h2>State Control</h2>
-                <form method="POST" action="{{ url_for('admin.admin_action') }}" class="inline-form">
-                    <input type="hidden" name="op" value="set_state">
-                    <select name="state" required>
-                        <option value="IDLE">IDLE</option>
-                        <option value="SHOW">SHOW</option>
-                        <option value="LOCK">LOCK</option>
-                        <option value="REVEAL">REVEAL</option>
-                    </select>
-                    <button type="submit" class="btn btn-secondary">Set State</button>
-                </form>
-            </div>
-            
-            <!-- Timer Control -->
-            <div class="admin-card">
-                <h2>Timer Control</h2>
-                <form method="POST" action="{{ url_for('admin.admin_action') }}" class="inline-form">
-                    <input type="hidden" name="op" value="start_timer">
-                    <input type="number" name="seconds" value="30" min="1" max="300" placeholder="Seconds">
-                    <button type="submit" class="btn btn-warning">Start Timer</button>
-                </form>
-                
-                <form method="POST" action="{{ url_for('admin.admin_action') }}" class="inline-form">
-                    <input type="hidden" name="op" value="add_time">
-                    <input type="number" name="seconds" value="10" min="1" max="120" placeholder="Add seconds">
-                    <button type="submit" class="btn btn-info">Add Time</button>
-                </form>
-            </div>
-            
-            <!-- Buzz Control -->
-            <div class="admin-card">
-                <h2>Buzz Control</h2>
-                <form method="POST" action="{{ url_for('admin.admin_action') }}" class="inline-form">
-                    <input type="hidden" name="op" value="unlock_buzz">
-                    <button type="submit" class="btn btn-danger">Unlock Buzz</button>
-                </form>
-                
-                <form method="POST" action="{{ url_for('admin.admin_action') }}" class="inline-form">
-                    <input type="hidden" name="op" value="clear_masks">
-                    <button type="submit" class="btn btn-danger">Clear 50-50 Masks</button>
-                </form>
-            </div>
-            
-            <!-- Team Control -->
-            <div class="admin-card">
-                <h2>Team Control</h2>
-                <form method="POST" action="{{ url_for('admin.admin_action') }}">
-                    <input type="hidden" name="op" value="set_active_team">
-                    <select name="team_id">
-                        <option value="0">Clear Active Team</option>
-                        {% for team in teams %}
-                            <option value="{{ team.id }}"
-                                {% if settings and team.id == settings.active_team_id %}selected{% endif %}>
-                                {{ team.name }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                    <button type="submit" class="btn btn-primary">Set Active Team</button>
-                </form>
-            </div>
-            
-            <!-- Broadcast Control -->
-            <div class="admin-card">
-                <h2>Broadcast Control</h2>
-                <form method="POST" action="{{ url_for('admin.admin_action') }}" class="inline-form">
-                    <input type="hidden" name="op" value="broadcast">
-                    <button type="submit" class="btn btn-success">Broadcast State</button>
-                </form>
-            </div>
-        </div>
-        
-        <!-- Teams List -->
-        <div class="teams-section">
-            <h2>Teams</h2>
-            <div class="teams-grid">
-                {% for team in teams %}
-                    <div class="team-card">
-                        <h3>{{ team.name }}</h3>
-                        <div>Code: {{ team.code }}</div>
-                        <div>ID: {{ team.id }}</div>
-                    </div>
-                {% endfor %}
-            </div>
-        </div>
-    {% endif %}
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Round -->
+      <div class="admin-card">
+        <h2>Round</h2>
+        <form method="POST" action="{{ url_for('admin.admin_action') }}">
+          <input type="hidden" name="op" value="set_round">
+          <select name="round_id" required>
+            <option value="">Select Round</option>
+            {% for r in rounds %}
+              <option value="{{ r.id }}" {% if settings and r.id == settings.current_round_id %}selected{% endif %}>
+                {{ r.name }}
+              </option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-primary">Apply</button>
+        </form>
+      </div>
+
+      <!-- Question -->
+      <div class="admin-card">
+        <h2>Question</h2>
+        <form method="POST" action="{{ url_for('admin.admin_action') }}">
+          <input type="hidden" name="op" value="set_question">
+          <select name="question_id" required>
+            <option value="">Select Question</option>
+            {% for q in questions %}
+              <option value="{{ q.id }}" {% if settings and q.id == settings.current_question_id %}selected{% endif %}>
+                {{ q.text[:60] }}{% if q.text|length > 60 %}…{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+          <input type="number" name="seconds" value="30" min="1" max="300" placeholder="Seconds">
+          <button type="submit" class="btn btn-primary">Set & Start</button>
+        </form>
+      </div>
+
+      <!-- State -->
+      <div class="admin-card">
+        <h2>State</h2>
+        <form method="POST" action="{{ url_for('admin.admin_action') }}" class="inline-form">
+          <input type="hidden" name="op" value="set_state">
+          <select name="state" required>
+            <option value="IDLE" {% if settings and settings.state=='IDLE' %}selected{% endif %}>IDLE</option>
+            <option value="SHOW" {% if settings and settings.state=='SHOW' %}selected{% endif %}>SHOW</option>
+            <option value="LOCK" {% if settings and settings.state=='LOCK' %}selected{% endif %}>LOCK</option>
+            <option value="REVEAL" {% if settings and settings.state=='REVEAL' %}selected{% endif %}>REVEAL</option>
+          </select>
+          <button type="submit" class="btn btn-secondary">Apply</button>
+        </form>
+      </div>
+
+      <!-- Timer -->
+      <div class="admin-card">
+        <h2>Timer</h2>
+        <form method="POST" action="{{ url_for('admin.admin_action') }}" class="inline-form">
+          <input type="hidden" name="op" value="start_timer">
+          <input type="number" name="seconds" value="30" min="1" max="300" placeholder="Seconds">
+          <button type="submit" class="btn btn-warning">Start</button>
+        </form>
+        <form method="POST" action="{{ url_for('admin.admin_action') }}" class="inline-form">
+          <input type="hidden" name="op" value="add_time">
+          <input type="number" name="seconds" value="10" min="1" max="120" placeholder="Add seconds">
+          <button type="submit" class="btn btn-info">Add</button>
+        </form>
+      </div>
+
+      <!-- Buzz & Masks -->
+      <div class="admin-card">
+        <h2>Buzz & Masks</h2>
+        <form method="POST" action="{{ url_for('admin.admin_action') }}" class="inline-form">
+          <input type="hidden" name="op" value="unlock_buzz">
+          <button type="submit" class="btn btn-danger">Unlock Buzz</button>
+        </form>
+        <form method="POST" action="{{ url_for('admin.admin_action') }}" class="inline-form">
+          <input type="hidden" name="op" value="clear_masks">
+          <button type="submit" class="btn btn-danger">Clear 50‑50 Masks</button>
+        </form>
+      </div>
+
+      <!-- Active Team -->
+      <div class="admin-card">
+        <h2>Active Team</h2>
+        <form method="POST" action="{{ url_for('admin.admin_action') }}">
+          <input type="hidden" name="op" value="set_active_team">
+          <select name="team_id">
+            <option value="0">Clear</option>
+            {% for t in teams %}
+              <option value="{{ t.id }}" {% if settings and t.id == settings.active_team_id %}selected{% endif %}>
+                {{ t.name }}
+              </option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-primary">Apply</button>
+        </form>
+      </div>
+
+      <!-- Broadcast -->
+      <div class="admin-card">
+        <h2>Broadcast</h2>
+        <form method="POST" action="{{ url_for('admin.admin_action') }}" class="inline-form">
+          <input type="hidden" name="op" value="broadcast">
+          <button type="submit" class="btn btn-success">Broadcast State</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Teams list -->
+    <div class="teams-section">
+      <h2>Teams</h2>
+      <div class="teams-grid">
+        {% for t in teams %}
+          <div class="team-card">
+            <h3>{{ t.name }}</h3>
+            <div>Code: {{ t.code }}</div>
+            <div>ID: {{ t.id }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
 </div>
 {% endblock %}
