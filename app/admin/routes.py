@@ -153,6 +153,13 @@ def admin_action():
         db.execute("UPDATE settings SET active_team_id = ? WHERE game_id = ?", (team_id, gid))
         db.commit()
 
+    elif op == "add_team":
+        name = request.form.get("name", "").strip()
+        code = request.form.get("code", "").strip().upper()
+        if name and code:
+            db.execute("INSERT INTO teams (game_id, name, code) VALUES (?, ?, ?)", (gid, name, code))
+            db.commit()
+
     elif op == "broadcast":
         # No DB mutations; just broadcast below.
         pass
