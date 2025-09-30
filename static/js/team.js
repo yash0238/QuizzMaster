@@ -5,226 +5,227 @@ let gameId;
 let teamCode;
 let teamId;
 let currentQuestionId;
-let maskedOptions = new Set();
-let lifelinesUsed = new Set();
+const maskedOptions = new Set();
+const lifelinesUsed = new Set();
 
 function initializeTeam() {
-    // Get team data from page
-    if (typeof teamData !== 'undefined') {
-        gameId = teamData.gameId;
-        teamCode = teamData.teamCode;
-        teamId = teamData.teamId;
-        currentQuestionId = teamData.initialQuestionId;
+  // Bootstrap from template
+  if (typeof teamData !== "undefined") {
+    gameId = teamData.gameId;
+    teamCode = teamData.teamCode;
+    teamId = teamData.teamId;
+    currentQuestionId = teamData.initialQuestionId;
+  }
+
+  // Connect Socket.IO
+  socket = connectSocket();
+  if (!socket) {
+    console.warn("Socket unavailable");
+    return;
+  }
+
+  // Connection flow
+  socket.on("connect", () => {
+    if (gameId && teamCode) {
+      socket.emit("join", { gameId, teamCode, role: "team" });
     }
-    
-    // Connect to Socket.IO
-    socket = connectSocket();
-    
-    // Socket event handlers
-    socket.on('connect', () => {
-        console.log('Team connected to server');
-        if (gameId && teamCode) {
-            // Join game and team rooms
-            socket.emit('join', {
-                gameId: gameId,
-                teamCode: teamCode,
-                role: 'team'
-            });
-        }
+  });
+
+  socket.on("joined", () => {
+    socket.emit("state_request", { gameId });
+  });
+
+  // State updates
+  socket.on("state_update", (data) => {
+    updateTeamDisplay(data);
+    // Enable manual lifelines during SHOW (local-only)
+    if (data.state === "SHOW") {
+      unlockManualLifelines();
+    } else {
+      lockManualLifelines();
+    }
+  });
+
+  // Buzz race result
+  socket.on("buzz_lock", (data) => {
+    const buzzBtn = $("#buzzBtn");
+    if (!buzzBtn) return;
+
+    if (data.winnerTeamCode === teamCode) {
+      buzzBtn.classList.add("buzz-winner");
+      const label = buzzBtn.querySelector(".buzz-text");
+      if (label) label.textContent = "YOU BUZZED!";
+      showToast("You buzzed in first!", "success");
+    } else {
+      buzzBtn.disabled = true;
+      buzzBtn.classList.add("buzz-locked");
+      const label = buzzBtn.querySelector(".buzz-text");
+      if (label) label.textContent = "LOCKED";
+      showToast(`${data.winnerTeamCode} buzzed in first`, "warning");
+    }
+  });
+
+  // 50-50 result (private to this team)
+  socket.on("mask_applied", (data) => {
+    if (data.questionId !== currentQuestionId) return;
+
+    maskedOptions.clear();
+    data.maskedOptions.forEach((i) => {
+      maskedOptions.add(i);
+      const btn = $(`[data-option="${i}"]`);
+      if (btn) {
+        btn.disabled = true;
+        btn.classList.add("option-masked");
+      }
     });
-    
-    socket.on('joined', (data) => {
-        console.log('Team joined:', data);
-        // Request current state
-        socket.emit('state_request', { gameId: gameId });
-    });
-    
-    socket.on('state_update', (data) => {
-        console.log('State update received:', data);
-        updateTeamDisplay(data);
-    });
-    
-    socket.on('buzz_lock', (data) => {
-        console.log('Buzz lock received:', data);
-        
-        const buzzBtn = $('#buzzBtn');
-        if (buzzBtn) {
-            if (data.winnerTeamCode === teamCode) {
-                // This team won the buzz
-                buzzBtn.classList.add('buzz-winner');
-                buzzBtn.querySelector('.buzz-text').textContent = 'YOU BUZZED!';
-                showToast('You buzzed in first!', 'success');
-            } else {
-                // Another team won
-                buzzBtn.disabled = true;
-                buzzBtn.classList.add('buzz-locked');
-                buzzBtn.querySelector('.buzz-text').textContent = 'LOCKED';
-                showToast(`${data.winnerTeamCode} buzzed in first`, 'warning');
-            }
-        }
-    });
-    
-    socket.on('mask_applied', (data) => {
-        console.log('Mask applied:', data);
-        
-        if (data.questionId === currentQuestionId) {
-            // Apply masks to options
-            maskedOptions.clear();
-            data.maskedOptions.forEach(optionIndex => {
-                maskedOptions.add(optionIndex);
-                const optionBtn = $(`[data-option="${optionIndex}"]`);
-                if (optionBtn) {
-                    optionBtn.disabled = true;
-                    optionBtn.classList.add('option-masked');
-                }
-            });
-            
-            showToast('50-50 lifeline applied!', 'success');
-        }
-    });
-    
-    socket.on('toast', (data) => {
-        showToast(data.msg, 'info');
-    });
-    
-    // Setup event listeners
-    setupTeamControls();
+    showToast("50-50 lifeline applied!", "success");
+  });
+
+  // Toasts
+  socket.on("toast", (data) => showToast(data.msg, "info"));
+
+  // Wire UI controls
+  setupTeamControls();
 }
 
 function setupTeamControls() {
-    // Buzz button
-    const buzzBtn = $('#buzzBtn');
-    if (buzzBtn) {
-        buzzBtn.addEventListener('click', () => {
-            if (!buzzBtn.disabled && gameId && teamCode) {
-                socket.emit('buzz', {
-                    gameId: gameId,
-                    teamCode: teamCode
-                });
-                
-                // Temporarily disable to prevent double-clicks
-                buzzBtn.disabled = true;
-                setTimeout(() => {
-                    if (!buzzBtn.classList.contains('buzz-locked')) {
-                        buzzBtn.disabled = false;
-                    }
-                }, 1000);
-            }
-        });
-    }
-    
-    // Option buttons (for future use - answer selection)
-    $all('.option-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const optionIndex = parseInt(btn.dataset.option);
-            if (!maskedOptions.has(optionIndex)) {
-                // Handle option selection (if needed for answer submission)
-                console.log('Option selected:', optionIndex);
-            }
-        });
+  // Buzz
+  const buzzBtn = $("#buzzBtn");
+  if (buzzBtn) {
+    buzzBtn.addEventListener("click", () => {
+      if (buzzBtn.disabled || !gameId || !teamCode) return;
+      socket.emit("buzz", { gameId, teamCode });
+
+      // Debounce double-click
+      buzzBtn.disabled = true;
+      setTimeout(() => {
+        if (!buzzBtn.classList.contains("buzz-locked")) {
+          buzzBtn.disabled = false;
+        }
+      }, 900);
     });
-    
-    // 50-50 lifeline button
-    const fiftyFiftyBtn = $('#fiftyFiftyBtn');
-    if (fiftyFiftyBtn) {
-        fiftyFiftyBtn.addEventListener('click', () => {
-            if (!fiftyFiftyBtn.disabled && !lifelinesUsed.has('FIFTY_FIFTY') && gameId && teamCode) {
-                socket.emit('fifty_request', {
-                    gameId: gameId,
-                    teamCode: teamCode
-                });
-                
-                // Lock the lifeline
-                fiftyFiftyBtn.disabled = true;
-                fiftyFiftyBtn.classList.add('lifeline-used');
-                lifelinesUsed.add('FIFTY_FIFTY');
-            }
-        });
-    }
-    
-    // Other lifeline buttons (placeholder for future implementation)
-    const phoneBtn = $('#phoneBtn');
-    const discussionBtn = $('#discussionBtn');
-    
-    if (phoneBtn) {
-        phoneBtn.addEventListener('click', () => {
-            showToast('Phone-a-Friend lifeline not yet implemented', 'info');
-        });
-    }
-    
-    if (discussionBtn) {
-        discussionBtn.addEventListener('click', () => {
-            showToast('Team Discussion lifeline not yet implemented', 'info');
-        });
-    }
+  }
+
+  // Options (local selection only; no server submit in this MVP)
+  $all(".option-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.option);
+      if (Number.isNaN(i) || maskedOptions.has(i)) return;
+      // Visual feedback for selection
+      $all(".option-btn").forEach((b) => b.classList.remove("selected"));
+      btn.classList.add("selected");
+    });
+  });
+
+  // 50-50 lifeline
+  const fifty = $("#fiftyFiftyBtn");
+  if (fifty) {
+    fifty.addEventListener("click", () => {
+      if (fifty.disabled || lifelinesUsed.has("FIFTY_FIFTY") || !gameId || !teamCode) return;
+      socket.emit("fifty_request", { gameId, teamCode });
+      fifty.disabled = true;
+      fifty.classList.add("lifeline-used");
+      lifelinesUsed.add("FIFTY_FIFTY");
+    });
+  }
+
+  // Manual lifelines (local-only)
+  const phone = $("#phoneBtn");
+  const discuss = $("#discussBtn");
+
+  if (phone) {
+    phone.addEventListener("click", () => {
+      if (phone.disabled) return;
+      lockAllLifelines();
+      showToast("Phone‑a‑Friend used", "info");
+    });
+  }
+  if (discuss) {
+    discuss.addEventListener("click", () => {
+      if (discuss.disabled) return;
+      lockAllLifelines();
+      showToast("Team Discussion used", "info");
+    });
+  }
 }
 
 function updateTeamDisplay(state) {
-    // Update question if changed
-    if (state.question && state.question.id !== currentQuestionId) {
-        currentQuestionId = state.question.id;
-        maskedOptions.clear(); // Clear masks for new question
-        
-        // Reset buzz button for new question
-        const buzzBtn = $('#buzzBtn');
-        if (buzzBtn) {
-            buzzBtn.disabled = false;
-            buzzBtn.classList.remove('buzz-winner', 'buzz-locked');
-            buzzBtn.querySelector('.buzz-text').textContent = 'BUZZ!';
-        }
-        
-        // Reset options
-        $all('.option-btn').forEach(btn => {
-            btn.disabled = false;
-            btn.classList.remove('option-masked');
-        });
+  // New question: reset buzz & options
+  if (state.question && state.question.id !== currentQuestionId) {
+    currentQuestionId = state.question.id;
+    maskedOptions.clear();
+
+    const buzzBtn = $("#buzzBtn");
+    if (buzzBtn) {
+      buzzBtn.disabled = false;
+      buzzBtn.classList.remove("buzz-winner", "buzz-locked");
+      const label = buzzBtn.querySelector(".buzz-text");
+      if (label) label.textContent = "BUZZ!";
     }
-    
-    // Update options display
-    if (state.question) {
-        const optionBtns = $all('.option-btn');
-        const labels = ['A', 'B', 'C', 'D'];
-        
-        for (let i = 0; i < 4; i++) {
-            if (optionBtns[i] && state.question.options[i]) {
-                optionBtns[i].textContent = `${labels[i]}: ${state.question.options[i]}`;
-                
-                // Reapply masks if they exist
-                if (maskedOptions.has(i)) {
-                    optionBtns[i].disabled = true;
-                    optionBtns[i].classList.add('option-masked');
-                }
-            }
-        }
-    }
-    
-    // Enable/disable controls based on state
-    const buzzBtn = $('#buzzBtn');
-    const fiftyFiftyBtn = $('#fiftyFiftyBtn');
-    
-    if (state.state === 'SHOW' && state.question) {
-        // Enable buzz button if no winner yet and not locked
-        if (buzzBtn && !buzzBtn.classList.contains('buzz-locked')) {
-            buzzBtn.disabled = false;
-        }
-        
-        // Enable 50-50 if not used and question is MCQ
-        if (fiftyFiftyBtn && !lifelinesUsed.has('FIFTY_FIFTY') && state.question.type === 'MCQ') {
-            fiftyFiftyBtn.disabled = false;
-            fiftyFiftyBtn.classList.remove('locked');
-        }
+
+    $all(".option-btn").forEach((btn) => {
+      btn.disabled = false;
+      btn.classList.remove("option-masked", "selected");
+    });
+  }
+
+  // Update option texts and reapply masks
+  if (state.question) {
+    const labels = ["A", "B", "C", "D"];
+    $all(".option-btn").forEach((btn, i) => {
+      if (!state.question.options[i]) return;
+      btn.textContent = `${labels[i]}: ${state.question.options[i]}`;
+      if (maskedOptions.has(i)) {
+        btn.disabled = true;
+        btn.classList.add("option-masked");
+      }
+    });
+  }
+
+  // Enable/disable by phase
+  const buzzBtn = $("#buzzBtn");
+  const fifty = $("#fiftyFiftyBtn");
+  const show = state.state === "SHOW" && !!state.question;
+
+  if (buzzBtn) buzzBtn.disabled = !show || buzzBtn.classList.contains("buzz-locked");
+
+  if (fifty) {
+    if (show && !lifelinesUsed.has("FIFTY_FIFTY") && state.question?.type === "MCQ") {
+      fifty.disabled = false;
+      fifty.classList.remove("locked");
     } else {
-        // Disable controls for other states
-        if (buzzBtn) {
-            buzzBtn.disabled = true;
-        }
-        
-        if (fiftyFiftyBtn) {
-            fiftyFiftyBtn.disabled = true;
-            fiftyFiftyBtn.classList.add('locked');
-        }
+      fifty.disabled = true;
+      fifty.classList.add("locked");
     }
+  }
 }
 
-// Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', initializeTeam);
+function unlockManualLifelines() {
+  ["phoneBtn", "discussBtn"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el && !el.classList.contains("locked")) el.disabled = false;
+  });
+}
+
+function lockManualLifelines() {
+  ["phoneBtn", "discussBtn"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.disabled = true;
+      el.classList.add("locked");
+    }
+  });
+}
+
+function lockAllLifelines() {
+  ["fiftyFiftyBtn", "phoneBtn", "discussBtn"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.disabled = true;
+      el.classList.add("locked");
+    }
+  });
+}
+
+// Init
+document.addEventListener("DOMContentLoaded", initializeTeam);
