@@ -6,7 +6,9 @@
     <h2>Choose Your Team</h2>
     <div class="options-grid">
       {% for t in teams %}
-        <a class="option-btn" href="{{ url_for('team.index', code=t['code']) }}">{{ t['name'] }} ({{ t['code'] }})</a>
+        <a class="option-btn" href="{{ url_for('team.by_code', code=t['code']) }}">
+          {{ t['name'] }} ({{ t['code'] }})
+        </a>
       {% endfor %}
     </div>
   </div>
