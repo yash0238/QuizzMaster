@@ -52,6 +52,7 @@ function initializeTeam() {
     }
   });
 
+  // Server-side rejections visible to users
   socket.on("error", (data) => {
     const msg = typeof data === "string" ? data : (data?.message || "Action rejected");
     showToast(msg, "warning");
@@ -76,14 +77,27 @@ function initializeTeam() {
     }
   });
 
-  // 50-50 result (private to this team)
+  // 50-50 result (private to this team) - tolerant to payload variants
   socket.on("mask_applied", (data) => {
-    if (data.questionId !== currentQuestionId) return;
+    const indices =
+      data?.maskedOptions ??
+      data?.masked_indices ??
+      data?.indices ??
+      [];
+
+    if (data?.questionId && currentQuestionId && data.questionId !== currentQuestionId) {
+      // Stale event for a different question; ignore
+      return;
+    }
+    if (!Array.isArray(indices) || indices.length === 0) {
+      showToast("50‑50 data missing", "warning");
+      return;
+    }
 
     maskedOptions.clear();
-    data.maskedOptions.forEach((i) => {
+    indices.forEach((i) => {
       maskedOptions.add(i);
-      const btn = $(`[data-option="${i}"]`);
+      const btn = document.querySelector(`[data-option="${i}"]`);
       if (btn) {
         btn.disabled = true;
         btn.classList.add("option-masked");
@@ -115,17 +129,6 @@ function setupTeamControls() {
         }
       }, 900);
     });
-    // Team Discussion (matches id="discussionBtn" in team.html)
-    const discussionBtn = document.getElementById("discussionBtn");
-    if (discussionBtn) {
-      discussionBtn.addEventListener("click", () => {
-        if (discussionBtn.disabled) return;
-        discussionBtn.disabled = true;
-        discussionBtn.classList.add("locked");
-        showToast("Team Discussion used", "info");
-      });
-}
-
   }
 
   // Options (local selection only; no server submit in this MVP)
@@ -133,7 +136,6 @@ function setupTeamControls() {
     btn.addEventListener("click", () => {
       const i = Number(btn.dataset.option);
       if (Number.isNaN(i) || maskedOptions.has(i)) return;
-      // Visual feedback for selection
       $all(".option-btn").forEach((b) => b.classList.remove("selected"));
       btn.classList.add("selected");
     });
@@ -151,10 +153,8 @@ function setupTeamControls() {
     });
   }
 
-  // Manual lifelines (local-only)
-  const phone = $("#phoneBtn");
-  const discuss = $("#discussBtn");
-
+  // Phone-a-Friend (local-only)
+  const phone = document.getElementById("phoneBtn");
   if (phone) {
     phone.addEventListener("click", () => {
       if (phone.disabled) return;
@@ -162,10 +162,14 @@ function setupTeamControls() {
       showToast("Phone‑a‑Friend used", "info");
     });
   }
-  if (discuss) {
-    discuss.addEventListener("click", () => {
-      if (discuss.disabled) return;
-      lockAllLifelines();
+
+  // Team Discussion (local-only; id matches template)
+  const discussionBtn = document.getElementById("discussionBtn");
+  if (discussionBtn) {
+    discussionBtn.addEventListener("click", () => {
+      if (discussionBtn.disabled) return;
+      discussionBtn.disabled = true;
+      discussionBtn.classList.add("locked");
       showToast("Team Discussion used", "info");
     });
   }
@@ -222,25 +226,8 @@ function updateTeamDisplay(state) {
   }
 }
 
-function unlockManualLifelines() {
-  ["phoneBtn", "discussBtn"].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el && !el.classList.contains("locked")) el.disabled = false;
-  });
-}
-
-function lockManualLifelines() {
-  ["phoneBtn", "discussBtn"].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.disabled = true;
-      el.classList.add("locked");
-    }
-  });
-}
-
 function lockAllLifelines() {
-  ["fiftyFiftyBtn", "phoneBtn", "discussBtn"].forEach((id) => {
+  ["fiftyFiftyBtn", "phoneBtn", "discussionBtn"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) {
       el.disabled = true;
