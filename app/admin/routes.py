@@ -6,11 +6,9 @@ import time
 bp = Blueprint("admin", __name__)
 
 def game_room(game_id: int) -> str:
-    """Socket.IO room name for a game."""
     return f"game:{game_id}"
 
 def _broadcast_state(game_id: int) -> None:
-    """Build and emit the current game state to all clients in the game room."""
     db = get_db()
     s = db.execute("SELECT * FROM settings WHERE game_id = ?", (game_id,)).fetchone()
     if not s:
@@ -33,12 +31,10 @@ def _broadcast_state(game_id: int) -> None:
                 "type": q["type"],
             }
 
-    # Use socketio.emit (not emit) from HTTP context
     socketio.emit("state_update", payload, to=game_room(game_id))
 
 @bp.route("/")
 def index():
-    """Admin console."""
     seed_if_empty()
     db = get_db()
 
@@ -63,7 +59,6 @@ def index():
 
 @bp.route("/action", methods=["POST"])
 def admin_action():
-    """Handle admin POST actions, then broadcast and PRG back to index."""
     db = get_db()
 
     game = db.execute("SELECT * FROM games ORDER BY id ASC LIMIT 1").fetchone()
@@ -87,16 +82,12 @@ def admin_action():
             try:
                 seconds = max(1, int(seconds_raw))
                 deadline = now_ms + seconds * 1000
-
-                # Clear any accepted buzz for this question; reset active team
                 db.execute(
                     "DELETE FROM buzzer_events WHERE game_id = ? AND question_id = ? AND accepted = 1",
                     (gid, qid),
                 )
                 db.execute(
-                    "UPDATE settings "
-                    "SET current_question_id = ?, state = ?, deadline_epoch_ms = ?, active_team_id = NULL "
-                    "WHERE game_id = ?",
+                    "UPDATE settings SET current_question_id = ?, state = ?, deadline_epoch_ms = ?, active_team_id = NULL WHERE game_id = ?",
                     (qid, "SHOW", deadline, gid),
                 )
                 db.commit()
@@ -160,13 +151,24 @@ def admin_action():
             db.execute("INSERT INTO teams (game_id, name, code) VALUES (?, ?, ?)", (gid, name, code))
             db.commit()
 
+    elif op == "add_question":
+        text = request.form.get("text", "").strip()
+        opt_a = request.form.get("opt_a", "").strip()
+        opt_b = request.form.get("opt_b", "").strip()
+        opt_c = request.form.get("opt_c", "").strip()
+        opt_d = request.form.get("opt_d", "").strip()
+        correct = request.form.get("correct_index", type=int)
+        qtype = request.form.get("type", "MCQ").strip() or "MCQ"
+        if text and all([opt_a, opt_b, opt_c, opt_d]) and correct in (0, 1, 2, 3):
+            db.execute(
+                "INSERT INTO questions (game_id, text, opt_a, opt_b, opt_c, opt_d, correct_index, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (gid, text, opt_a, opt_b, opt_c, opt_d, correct, qtype),
+            )
+            db.commit()
+
     elif op == "broadcast":
-        # No DB mutations; just broadcast below.
         pass
 
-    # Notify clients
     _broadcast_state(gid)
     socketio.emit("toast", {"msg": f"Admin: {op} applied"}, to=game_room(gid))
-
-    # PRG
     return redirect(url_for("admin.index"))
