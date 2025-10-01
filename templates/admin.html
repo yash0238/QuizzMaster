@@ -9,6 +9,8 @@
     <div class="error-message">{{ error }}</div>
   {% else %}
     <div class="admin-grid">
+
+      <!-- Add Team -->
       <div class="admin-card">
         <h2>Add Team</h2>
         <form method="POST" action="{{ url_for('admin.admin_action') }}">
@@ -17,7 +19,28 @@
           <input type="text" name="code" placeholder="TEAM_CODE" required/>
           <button type="submit" class="btn btn-secondary">Add Team</button>
         </form>
-      </div>      
+      </div>
+
+      <!-- Add Question -->
+      <div class="admin-card">
+        <h2>Add Question</h2>
+        <form method="POST" action="{{ url_for('admin.admin_action') }}">
+          <input type="hidden" name="op" value="add_question"/>
+          <label>Text</label>
+          <input type="text" name="text" required style="width:100%"/>
+          <div class="options-grid" style="margin-top:8px">
+            <input type="text" name="opt_a" placeholder="Option A" required/>
+            <input type="text" name="opt_b" placeholder="Option B" required/>
+            <input type="text" name="opt_c" placeholder="Option C" required/>
+            <input type="text" name="opt_d" placeholder="Option D" required/>
+          </div>
+          <label style="margin-top:8px">Correct index (0=A, 1=B, 2=C, 3=D)</label>
+          <input type="number" name="correct_index" min="0" max="3" required value="1"/>
+          <input type="hidden" name="type" value="MCQ"/>
+          <button type="submit" class="btn btn-primary" style="margin-top:8px">Add Question</button>
+        </form>
+      </div>
+
       <!-- Current State -->
       <div class="admin-card">
         <h2>Current State</h2>
