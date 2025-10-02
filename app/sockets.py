@@ -203,11 +203,11 @@ def handle_fifty_fifty(data):
 
     # Enforce one 50-50 per team for the whole event
     used = db.execute(
-        "SELECT 1 FROM lifeline_usage WHERE game_id = ? AND team_id = ? AND lifeline = ?",
-        (game_id, team["id"], "FIFTY_FIFTY"),
+        "SELECT 1 FROM lifeline_usage WHERE game_id=? AND team_id=? AND lifeline=? AND used_in_round_id=?",
+        (game_id, team["id"], "FIFTY_FIFTY", s["current_round_id"]),
     ).fetchone()
     if used:
-        emit("error", {"message": "50-50 lifeline already used"})
+        emit("error", {"message": "50-50 lifeline already used this round"})
         return
 
     correct = q["correct_index"]
