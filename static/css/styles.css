@@ -5,6 +5,17 @@
     box-sizing: border-box;
 }
 
+:root {
+  --kbc-bg-deep: #0B0F2E;        /* deep stage blue */
+  --kbc-bg-core: #2D0C5E;        /* violet core */
+  --kbc-bg-ring: #0B1F5E;        /* royal blue ring */
+  --kbc-gold:    #FFD700;        /* gold accent */
+  --kbc-cyan:    #00D4FF;        /* neon cyan glow */
+  --kbc-text:    #E8EAF6;        /* soft light text */
+  --kbc-panel:   rgba(255,255,255,0.06); /* frosted panels */
+  --kbc-stroke:  rgba(0,212,255,0.25);   /* subtle edge */
+}
+
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
