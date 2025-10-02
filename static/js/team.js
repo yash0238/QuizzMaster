@@ -8,6 +8,15 @@ let currentQuestionId;
 const maskedOptions = new Set();
 const lifelinesUsed = new Set();
 
+let currentRoundId = null;
+const lifelinesUsedByRound = new Map(); // roundId -> Set(["FIFTY_FIFTY","PHONE","DISCUSS"])
+function markLifelineUsed(key){ 
+  if(!currentRoundId) 
+    return; 
+  if(!lifelinesUsedByRound.has(currentRoundId)) lifelinesUsedByRound.set(currentRoundId,new Set()); lifelinesUsedByRound.get(currentRoundId).add(key); }
+function isUsedThisRound(key){ return currentRoundId && lifelinesUsedByRound.get(currentRoundId)?.has(key); }
+
+
 function initializeTeam() {
   // Bootstrap from template
   if (typeof teamData !== "undefined") {
