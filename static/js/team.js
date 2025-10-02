@@ -6,8 +6,8 @@ let teamCode;
 let teamId;
 let currentQuestionId;
 
-let currentRoundId = null;                // Track the active round (sent by server)
-const maskedOptions = new Set();          // Indices 0..3 masked by 50-50
+let currentRoundId = null;                // Active round id from server
+const maskedOptions = new Set();          // 0..3 indices masked by 50-50
 const lifelinesUsedByRound = new Map();   // Map<roundId, Set<"FIFTY_FIFTY"|"PHONE"|"DISCUSS">>
 
 function markLifelineUsed(key) {
@@ -29,32 +29,26 @@ function initializeTeam() {
     currentQuestionId = teamData.initialQuestionId;
   }
 
-  // Connect Socket.IO
+  // Connect to Socket.IO
   socket = connectSocket();
-  if (!socket) {
-    console.warn("Socket unavailable");
-    return;
-  }
+  if (!socket) return;
 
-  // Join game/team rooms
+  // Join flow
   socket.on("connect", () => {
     if (gameId && teamCode) socket.emit("join", { gameId, teamCode, role: "team" });
   });
+  socket.on("joined", () => socket.emit("state_request", { gameId }));
 
-  socket.on("joined", () => {
-    socket.emit("state_request", { gameId });
-  });
-
-  // State updates from server
+  // State updates
   socket.on("state_update", (data) => {
-    // Track round change
+    // Track round
     const incomingRoundId = data.currentRoundId ?? currentRoundId;
     const roundChanged = currentRoundId !== incomingRoundId;
     currentRoundId = incomingRoundId;
 
     updateTeamDisplay(data);
 
-    // If round changed, clear local locks so buttons can be re-evaluated
+    // If round changed, clear UI locks so re-evaluation can enable where allowed
     if (roundChanged) {
       ["fiftyFiftyBtn", "phoneBtn", "discussionBtn"].forEach((id) => {
         const el = document.getElementById(id);
@@ -62,7 +56,7 @@ function initializeTeam() {
       });
     }
 
-    // Enable/disable by state and per-round usage
+    // Per-state and per-round enablement
     const inShow = data.state === "SHOW";
     const fifty = document.getElementById("fiftyFiftyBtn");
     if (fifty) {
@@ -72,7 +66,6 @@ function initializeTeam() {
         fifty.disabled = true; fifty.classList.add("locked");
       }
     }
-
     const phone = document.getElementById("phoneBtn");
     if (phone) {
       if (inShow && !isUsedThisRound("PHONE")) {
@@ -81,7 +74,6 @@ function initializeTeam() {
         phone.disabled = true; phone.classList.add("locked");
       }
     }
-
     const discuss = document.getElementById("discussionBtn");
     if (discuss) {
       if (inShow && !isUsedThisRound("DISCUSS")) {
@@ -92,11 +84,10 @@ function initializeTeam() {
     }
   });
 
-  // Show server rejections
+  // Server errors
   socket.on("error", (data) => {
     const msg = typeof data === "string" ? data : (data?.message || "Action rejected");
     showToast(msg, "warning");
-    // If server says lifeline already used, hard-lock button this round
     if (String(msg).toLowerCase().includes("already used")) {
       markLifelineUsed("FIFTY_FIFTY");
       const b = document.getElementById("fiftyFiftyBtn");
@@ -104,7 +95,7 @@ function initializeTeam() {
     }
   });
 
-  // Buzz race result
+  // Buzz lock
   socket.on("buzz_lock", (data) => {
     const buzzBtn = $("#buzzBtn");
     if (!buzzBtn) return;
@@ -122,7 +113,7 @@ function initializeTeam() {
     }
   });
 
-  // 50-50 result (private to this team) - tolerant payload
+  // 50-50 result
   socket.on("mask_applied", (data) => {
     const indices = data?.maskedOptions ?? data?.masked_indices ?? data?.indices ?? [];
     if (data?.questionId && currentQuestionId && data.questionId !== currentQuestionId) return;
@@ -134,19 +125,16 @@ function initializeTeam() {
     indices.forEach((i) => {
       maskedOptions.add(i);
       const btn = document.querySelector(`[data-option="${i}"]`);
-      if (btn) {
-        btn.disabled = true;
-        btn.classList.add("option-masked");
-      }
+      if (btn) { btn.disabled = true; btn.classList.add("option-masked"); }
     });
-    markLifelineUsed("FIFTY_FIFTY"); // lock for rest of the round
+    markLifelineUsed("FIFTY_FIFTY");
     showToast("50-50 lifeline applied!", "success");
   });
 
   // Toasts
   socket.on("toast", (data) => showToast(data.msg, "info"));
 
-  // Wire UI controls
+  // Wire UI
   setupTeamControls();
 }
 
@@ -164,7 +152,7 @@ function setupTeamControls() {
     });
   }
 
-  // Options (local highlight only)
+  // Option selection (local highlight)
   $all(".option-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const i = Number(btn.dataset.option);
@@ -174,7 +162,7 @@ function setupTeamControls() {
     });
   });
 
-  // 50-50 lifeline (optimistic lock, server confirms)
+  // 50-50
   const fifty = $("#fiftyFiftyBtn");
   if (fifty) {
     fifty.addEventListener("click", () => {
@@ -197,7 +185,7 @@ function setupTeamControls() {
     });
   }
 
-  // Team Discussion (local-only; id matches template)
+  // Team Discussion (local-only)
   const discussionBtn = document.getElementById("discussionBtn");
   if (discussionBtn) {
     discussionBtn.addEventListener("click", () => {
@@ -211,7 +199,7 @@ function setupTeamControls() {
 }
 
 function updateTeamDisplay(state) {
-  // New question: reset buzz & options (lifeline usage is per-round, not cleared here)
+  // When question changes, reset buzz & options (lifelines stay round-scoped)
   if (state.question && state.question.id !== currentQuestionId) {
     currentQuestionId = state.question.id;
     maskedOptions.clear();
