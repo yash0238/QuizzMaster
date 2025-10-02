@@ -63,6 +63,7 @@ def _broadcast_state(game_id: int) -> None:
         "state": s["state"],
         "deadlineEpochMs": s["deadline_epoch_ms"],
         "activeTeamId": s["active_team_id"],
+        "currentRoundId": s["current_round_id"],
     }
 
     if s["current_question_id"]:
@@ -80,15 +81,8 @@ def _broadcast_state(game_id: int) -> None:
         t = db.execute("SELECT id, name, code FROM teams WHERE id = ?", (s["active_team_id"],)).fetchone()
         if t:
             active = {"id": t["id"], "name": t["name"], "code": t["code"]}
-    
-    payload = {
-        "gameId": game_id,
-        "state": s["state"],
-        "deadlineEpochMs": s["deadline_epoch_ms"],
-        "activeTeamId": s["active_team_id"],
-        "activeTeam": active,  
-    }
-    
+    payload["activeTeam"] = active
+
     socketio.emit("state_update", payload, to=game_room(game_id))
 
 # ----------------------------
@@ -118,7 +112,7 @@ def handle_join(data):
 
 @socketio.on("state_request")
 def handle_state_request(data):
-    game_id = data.get("gameId")
+    game_id = data.get("GameId") or data.get("gameId")
     if game_id:
         _broadcast_state(game_id)
 
@@ -201,7 +195,6 @@ def handle_fifty_fifty(data):
         emit("error", {"message": "50-50 only available for multiple choice questions"})
         return
 
-    # If team already has a mask for this question, re-emit the same mask for better UX
     existing_mask = db.execute(
         "SELECT masked_i1, masked_i2 FROM team_masks WHERE game_id = ? AND team_id = ? AND question_id = ?",
         (game_id, team["id"], qid),
@@ -215,7 +208,6 @@ def handle_fifty_fifty(data):
         )
         return
 
-    # Enforce one 50-50 per team for the whole event
     used = db.execute(
         "SELECT 1 FROM lifeline_usage WHERE game_id=? AND team_id=? AND lifeline=? AND used_in_round_id=?",
         (game_id, team["id"], "FIFTY_FIFTY", s["current_round_id"]),
