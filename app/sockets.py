@@ -75,6 +75,20 @@ def _broadcast_state(game_id: int) -> None:
                 "type": q["type"],
             }
 
+    active = None
+    if s["active_team_id"]:
+        t = db.execute("SELECT id, name, code FROM teams WHERE id = ?", (s["active_team_id"],)).fetchone()
+        if t:
+            active = {"id": t["id"], "name": t["name"], "code": t["code"]}
+    
+    payload = {
+        "gameId": game_id,
+        "state": s["state"],
+        "deadlineEpochMs": s["deadline_epoch_ms"],
+        "activeTeamId": s["active_team_id"],
+        "activeTeam": active,  
+    }
+    
     socketio.emit("state_update", payload, to=game_room(game_id))
 
 # ----------------------------
