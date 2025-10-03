@@ -1,5 +1,24 @@
+# Real‑Time Quiz Buzzer (Flask + Socket.IO)
 
-Then open these routes in a browser:
+Fast, TV‑style quiz platform with host, team, and admin interfaces, live buzzing, lifelines, and synchronized state across clients.
+
+## Features
+- Real‑time state sync with Socket.IO rooms per game and per team.
+- First‑buzz wins with strict locking and a single accepted buzz per question.
+- Lifelines: 50‑50 (server‑enforced, per‑round), plus local Phone‑a‑Friend and Team Discussion.
+- Host screen: live timer, active team banner, question and options.
+- Admin console: set rounds/questions/state, start/add time, unlock buzzing, clear lifeline masks, and manage teams/questions.
+- SQLite schema with foreign keys, WAL, and helpful indexes.
+
+## Tech stack
+- Backend: Flask, Flask‑SocketIO, eventlet
+- Database: SQLite (sqlite3, raw SQL; no ORM)
+- Frontend: Jinja templates, Socket.IO client, vanilla JS, responsive CSS
+
+---
+
+
+Open these routes in a browser:
 - Host screen: http://localhost:5000/host
 - Admin console: http://localhost:5000/admin
 - Team lobby: http://localhost:5000/team/lobby
